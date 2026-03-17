@@ -1,0 +1,47 @@
+#!/usr/bin/env sh
+
+SCRIPT_DIR="${HOME}/.config/hypr/scripts/brightness"
+
+direction=$1
+
+cursor=$(hyprctl cursorpos -j)
+cursor_x=$(echo $cursor | jq -r '.x')
+cursor_y=$(echo $cursor | jq -r '.y')
+
+monitor_data=$(hyprctl monitors -j)
+
+monitor_under_cursor=$(echo $monitor_data | jq -r --arg x "$cursor_x" --arg y "$cursor_y" '
+  .[] | 
+  select(
+    (.x | tonumber) <= ($x | tonumber) and
+    ($x | tonumber) < (.x | tonumber) + (.width | tonumber) / (.scale | tonumber) and
+    (.y | tonumber) <= ($y | tonumber) and
+    ($y | tonumber) < (.y | tonumber) + (.height | tonumber) / (.scale | tonumber)
+  )
+')
+
+monitor_name=$(echo $monitor_under_cursor | jq -r '.name')
+
+if [ "$monitor_name" == "eDP-1" ]; then
+  if [ "$direction" == "-" ]; then
+    brightnessctl s 5%-
+  else
+    brightnessctl s +5%
+  fi
+  current_brightness=$(brightnessctl -m | awk -F, '{print substr($4, 0, length($4))}')
+  swayosd-client --monitor "$monitor_name" --custom-message="🔆 Brightness: $current_brightness"
+else
+  cache_file="$SCRIPT_DIR/ddc_bus_map.txt"
+  bus=$(grep "^$monitor_name:" "$cache_file" 2>/dev/null | cut -d: -f2)
+
+  if [ -z "$bus" ]; then
+    "$SCRIPT_DIR/hypr-ddc-update"
+    bus=$(grep "^$monitor_name:" "$cache_file" 2>/dev/null | cut -d: -f2)
+  fi
+
+  if [ -n "$bus" ]; then
+    ddcutil -b $bus setvcp 10 $direction 5
+    current_brightness=$(ddcutil -b $bus getvcp 10 | awk '{ print $9 }' | tr ',' '%\n')
+    swayosd-client --monitor "$monitor_name" --custom-message="🔆 Brightness: $current_brightness"
+  fi
+fi
