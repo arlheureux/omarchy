@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+
+SCRIPT_DIR="${HOME}/.config/hypr/scripts/brightness"
+
+cache_file="$SCRIPT_DIR/ddc_bus_map.txt"
+ddc_output=$(ddcutil detect)
+
+monitors=$(hyprctl monitors -j | jq -r '.[] | select(.name != "eDP-1") | .name')
+
+> "$cache_file"
+
+for mon in $monitors; do
+  bus=$(echo "$ddc_output" | grep -B1 "$mon" | grep "I2C bus" | awk '{print $3}' | sed 's|/dev/i2c-||')
+  if [ -n "$bus" ]; then
+    echo "$mon:$bus" >> "$cache_file"
+  fi
+done

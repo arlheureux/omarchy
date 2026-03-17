@@ -1,0 +1,12 @@
+#!/bin/sh
+
+SCRIPT_DIR="${HOME}/.config/hypr/scripts/brightness"
+
+handle() {
+  case $1 in
+    monitoradded*) "$SCRIPT_DIR/hypr-ddc-update" ;;
+    monitorremoved*) "$SCRIPT_DIR/hypr-ddc-update" ;;
+  esac
+}
+
+socat -U - UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock | while read -r line; do handle "$line"; done
